@@ -96,28 +96,23 @@ type IExpr = // input expr AST
 type PExpr = // single-variable form after plugging in known vars
     | PVar // the single variable we're solving for
     | PNum of Number
-    | PNeg of PExpr
     | PMul of PExpr * PExpr
     | PDiv of PExpr * PExpr
     | PAdd of PExpr * PExpr
 
-let rec constant e =
-    match e with
-    | PVar -> None
-    | PNum n -> Some n
-    | PNeg n -> Option.map (~-) (constant n)
-    | PMul (l, r) ->
-        match constant l, constant r with
-        | Some l, Some r -> Some (l * r)
-        | _ -> None
-    | PDiv (l, r) ->
-        match constant l, constant r with
-        | Some l, Some r -> Some (l / r)
-        | _ -> None
-    | PAdd (l, r) ->
-        match constant l, constant r with
-        | Some l, Some r -> Some (l + r)
-        | _ -> None
+let rec plugIn (vars : Map<Variable, Number option>) (ex : IExpr) =
+    match ex with
+    | IVar v ->
+        match vars |> Map.tryFind v with
+        | Some None -> PVar
+        | Some (Some n) -> PNum n
+        | None -> failwithf "Variable %O not bound to a value or for solving" v
+    | INum n -> PNum n
+    | INeg e -> PMul(PNum (-1N), plugIn vars e)
+    | IMul (l, r) -> PMul(plugIn vars l, plugIn vars r)
+    | IDiv (l, r) -> PDiv(plugIn vars l, plugIn vars r)
+    | IAdd (l, r) -> PAdd(plugIn vars l, plugIn vars r)
+    | ISub (l, r) -> PAdd(plugIn vars l, PMul(PNum (-1N), plugIn vars r))
 
 type Solution =
     | False
@@ -140,9 +135,6 @@ type Polynomial =
             [   for i = 1 to power do yield 0N
                 for x in xs -> n * x
             ]
-    static member Constant(n) = Polynomial [ n ]
-    static member Linear(m, b) = Polynomial [ b; m ]
-    static member Quadratic(a, b, c) = Polynomial [ c; b; a ]
     static member ( ~- ) (Polynomial factors) =
         Polynomial [ for f in factors -> -f ]
     static member ( * ) (Polynomial left, right : Polynomial) =
@@ -163,18 +155,10 @@ type Polynomial =
     static member ( - ) (left : Polynomial, right : Polynomial) =
         left + -right
 
-module NumericLiteralP =
-    let FromOne () = Polynomial.Constant(1N)
-    let FromZero () = Polynomial.Constant(0N)
-    let FromInt32 i = Polynomial.Constant(NumericLiteralN.FromInt32 i)
-    let FromInt64 i = Polynomial.Constant(NumericLiteralN.FromInt64 i)
-    let FromString s = Polynomial.Constant(NumericLiteralN.FromString s)
-
 let rec toPolynomial e =
     match e with
-    | PVar -> Polynomial.Linear(1N, 0N)
-    | PNum n -> Polynomial.Constant(n)
-    | PNeg n -> -(toPolynomial n)
+    | PVar -> Polynomial [ 0N; 1N ]
+    | PNum n -> Polynomial [ n ]
     | PMul (l, r) -> toPolynomial l * toPolynomial r
     | PDiv (l, r) -> toPolynomial l / toPolynomial r
     | PAdd (l, r) -> toPolynomial l + toPolynomial r
@@ -197,12 +181,26 @@ let rec solutions (value : Number) (Polynomial p) =
             [   [ TrueWithVar ((-b + s) / (2N * a)) ]
                 [ TrueWithVar ((-b - s) / (2N * a)) ]
             ]
-    | _ -> failwith "can't handle anything fancier than quadratic equations"
+    | _ -> failwith "can't handle anything fancier than quadratic equations" // TODO
 
 [<EntryPoint>]
 let main argv =
-    let m = Polynomial [ 1N; 2N; 3N ]
-    let n = Polynomial [ 1N; 2N; 3N; 4N ]
-    printfn "%O" (m * n)
-    printfn "%O" (n * m)
+    let v name = IVar (Variable name)
+    let formula =
+        // price = cost + cost * markup
+        // 1 = (cost + cost * markup) / price
+        IDiv(IAdd(v "cost", IMul(v "cost", v "markup")), v "price")
+    let bindings =
+        [   Variable "cost", Some (10N)
+            Variable "markup", None //Some (1N/2N)
+            Variable "price", Some (15N)
+        ] |> Map.ofList
+    let plugged =
+        formula
+        |> plugIn bindings
+    let poly = toPolynomial plugged
+    printfn "%A" poly
+    let solutions =
+        solutions 1N poly
+    printfn "%A" solutions
     0 // return an integer exit code
