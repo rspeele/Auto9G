@@ -1,4 +1,5 @@
 ﻿module CAS.Main
+open System
 
 let rec gcd a b =
     if b = 0L then a
@@ -8,8 +9,16 @@ let rec gcd a b =
 type Variable =
     | Variable of string
 
+[<CustomEquality>]
+[<CustomComparison>]
 type Number =
     | Fraction of numerator : int64 * denominator : int64
+    member inline private this.Numerator = let (Fraction(n, _)) = this in n
+    member inline private this.Denominator = let (Fraction(_, d)) = this in d
+    member this.Sign =
+        let (Fraction (n, d)) = this
+        if (n >= 0L) = (d >= 0L) then 1
+        else -1
     override this.ToString() =
         let (Fraction (n, d)) = this
         if d = 1L then string n
@@ -33,6 +42,40 @@ type Number =
         left + -right
     static member ( ~- ) (Fraction (rn, rd)) =
         Fraction (-rn, rd)
+    static member Abs(Fraction (rn, rd)) =
+        Fraction (abs rn, abs rd)
+    static member Sqrt (x : Number) =
+        // TODO: represent irrationals deferring the sqrt...
+        // this is just a placeholder to see if things are sort-of right
+        let ratio = double x.Numerator / double x.Denominator
+        let approx = sqrt ratio
+        let scale = 1000L
+        Fraction (int64 (approx * double scale), 1L) * Fraction(1L, scale)
+    member this.CompareTo(other : Number) =
+        if this.Sign > other.Sign then 1
+        elif this.Sign < other.Sign then -1
+        else
+            let ratio = this / other
+            if ratio.Numerator = ratio.Denominator then 0
+            elif ratio.Numerator < ratio.Denominator then 1
+            else -1
+    member this.CompareTo(other : obj) =
+        match other with
+        | :? Number as other -> this.CompareTo(other)
+        | _ -> -1
+    member this.Equals(o : Number) =
+        this.CompareTo(o) = 0
+    override this.Equals(o : obj) =
+        this.CompareTo(o) = 0
+    override this.GetHashCode() =
+        let (Fraction (n, d)) = this
+        (n, d).GetHashCode()
+    interface IComparable with
+        member this.CompareTo(other) = this.CompareTo(other)
+    interface IEquatable<Number> with
+        member this.Equals(other) = this.Equals(other)
+    interface IComparable<Number> with
+        member this.CompareTo(other) = this.CompareTo(other)
 
 module NumericLiteralN =
     let FromOne () = Fraction(1L, 1L)
@@ -136,64 +179,25 @@ let rec toPolynomial e =
     | PDiv (l, r) -> toPolynomial l / toPolynomial r
     | PAdd (l, r) -> toPolynomial l + toPolynomial r
 
-//// price = cost + cost * markup
-
-//// first refactor to put a constant on the left side
-
-//// 1 = (cost + cost * markup) / price
-
-//// next solve using the left side as the accumulator, till we end up with just a var on the right side
-//let rec solve acc e =
-//    match e with
-//    | PVar -> [TrueWithVar acc]
-//    | PNum n ->
-//        if n = acc then [True] else [False]
-//    | PNeg n ->
-//        solve (-acc) e
-//    | PMul (l, r) ->
-//        // some special cases to consider
-//        match constant l, constant r with
-//        // 1. both sides evaulate to constants, in which case this is equivalent to a constant
-//        | Some l, Some r ->
-//            solve acc (PNum (l * r))
-//        // 2. one side evaluates to a constant, in which case we can solve the other side
-//        | None, Some r ->
-//            solve (acc / r) l
-//        | Some l, None ->
-//            solve (acc / l) r
-//        // 3. both sides contain a variable, in which case we have to get fancy
-//        | None, None ->
-//            failwith "need to convert this to a polynomial to solve"
-//            // like n = ((x + 1) * x)
-//            // becomes n = x^2 + x (by distributing)
-//            // which we can solve w/ quadratic formula
-//            // (or working backwards using +/- for the sqrts ourselves?)
-//    | PDiv (l, r) ->
-//        // some special cases to consider
-//        match constant l, constant r with
-//        // 1. both sides evaulate to constants, in which case this is equivalent to a constant
-//        | Some l, Some r ->
-//            solve acc (PNum (l / r))
-//        // 2. one side evaluates to a constant, in which case we can solve the other side
-//        | None, Some r ->
-//            solve (acc * r) l
-//        | Some l, None ->
-//            solve (l / acc) r
-//        | None, None ->
-//            failwith "not sure what to do here, but probably starts by distributing"
-//    | PAdd (l, r) ->
-//        // some special cases to consider
-//        match constant l, constant r with
-//        // 1. both sides evaulate to constants, in which case this is equivalent to a constant
-//        | Some l, Some r ->
-//            solve acc (PNum (l + r))
-//        // 2. one side evaluates to a constant, in which case we can solve the other side
-//        | None, Some r ->
-//            solve (acc - r) l
-//        | Some l, None ->
-//            solve (acc - l) r
-//        | None, None ->
-//            failwith "not sure what to do here, but probably starts by distributing"
+let rec solutions (value : Number) (Polynomial p) =
+    let p = p |> List.rev |> List.skipWhile ((=) 0N) |> List.rev
+    match p with
+    | [] ->
+        if value = 0N then [ [] ] else []
+    | [ k ] ->
+        if value = k then [ [] ] else []
+    | [ k; m ] ->
+        let x = (value - k) / m
+        [ [ TrueWithVar x ] ]
+    | [ c; b; a ] ->
+        let square = b * b - 4N * a * c
+        if square < 0N then []
+        else
+            let s = sqrt square
+            [   [ TrueWithVar ((-b + s) / (2N * a)) ]
+                [ TrueWithVar ((-b - s) / (2N * a)) ]
+            ]
+    | _ -> failwith "can't handle anything fancier than quadratic equations"
 
 [<EntryPoint>]
 let main argv =
