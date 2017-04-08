@@ -21,17 +21,44 @@ type Number =
     static member Zero =
         Literal 0L
     static member Sqrt(x) =
-        SquareRoot x
+        (SquareRoot x).Simplify()
     static member ( * ) (l, r) =
-        Multiply (l, r)
+        (Multiply (l, r)).Simplify()
     static member ( / ) (l, r) =
-        Divide (l, r)
+        (Divide (l, r)).Simplify()
     static member ( ~- ) (x) =
-        Multiply(Literal -1L, x)
+        (Multiply(Literal -1L, x)).Simplify()
     static member ( + ) (l, r) =
-        Add (l, r)
+        (Add (l, r)).Simplify()
     static member ( - ) (l, r) =
-        Add (l, -r)
+        (Add (l, -r)).Simplify()
+    member this.Simplify() =
+        match this with
+        | Multiply (l, r) ->
+            match l.Simplify(), r.Simplify() with
+            | (Literal 0L as zero, _)
+            | (_, (Literal 0L as zero)) -> zero
+            | Literal 1L, x
+            | x, Literal 1L -> x
+            | x, (Divide (n, d))
+            | (Divide (n, d)), x when d = x -> n
+            | SquareRoot x, SquareRoot y when x = y -> x
+            | l, r -> Multiply(l, r)
+        | Divide (l, r) ->
+            match l.Simplify(), r.Simplify() with
+            | x, Literal 1L -> x
+            | x, y when x = y -> Literal 1L
+            | x, Multiply(Literal n, y) when x = y -> Literal 1L / Literal n
+            | Multiply(Literal n, y), x when x = y -> Literal n
+            | l, r -> Divide(l, r)
+        | Add (l, r) ->
+            match l.Simplify(), r.Simplify() with
+            | Literal 0L, x
+            | x, Literal 0L -> x
+            | Literal x, Literal y -> Literal (x + y)
+            | x, y when x = y -> Multiply(Literal 2L, x)
+            | l, r -> Add (l, r)
+        | other -> other
     member this.Approximate() =
         match this with
         | Literal x -> decimal x
@@ -97,11 +124,6 @@ let rec plugIn (vars : Map<Variable, Number option>) (ex : IExpr) =
     | IDiv (l, r) -> PDiv(plugIn vars l, plugIn vars r)
     | IAdd (l, r) -> PAdd(plugIn vars l, plugIn vars r)
     | ISub (l, r) -> PAdd(plugIn vars l, PMul(PNum (-1N), plugIn vars r))
-
-type Solution =
-    | False
-    | True
-    | TrueWithVar of Number
 
 type Power = int
 
