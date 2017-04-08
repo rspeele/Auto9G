@@ -95,14 +95,14 @@ module NumericLiteralN =
     let FromInt64 i = Literal i
     let FromString (s : string) = Literal (int64 s)
     
-type IExpr = // input expr AST
-    | IVar of Variable
-    | INum of Solution
-    | INeg of IExpr
-    | IMul of IExpr * IExpr
-    | IDiv of IExpr * IExpr
-    | IAdd of IExpr * IExpr
-    | ISub of IExpr * IExpr
+type InputExpr =
+    | InputVar of Variable
+    | InputNum of Solution
+    | InputNeg of InputExpr
+    | InputMul of InputExpr * InputExpr
+    | InputDiv of InputExpr * InputExpr
+    | InputAdd of InputExpr * InputExpr
+    | InputSub of InputExpr * InputExpr
 
 type Power = int
 
@@ -167,14 +167,14 @@ type Poly =
 
 let rec toPolynomial solvingForVar e =
     match e with
-    | IVar v when v = solvingForVar -> Poly [ PolyTerm(1N, 1) ]
-    | IVar v -> Poly [ PolyTerm(BoundVariable v, 0) ]
-    | INum n -> Poly [ PolyTerm(n, 0) ]
-    | IMul (l, r) -> toPolynomial solvingForVar l * toPolynomial solvingForVar r
-    | IDiv (l, r) -> toPolynomial solvingForVar l / toPolynomial solvingForVar r
-    | IAdd (l, r) -> toPolynomial solvingForVar l + toPolynomial solvingForVar r
-    | ISub (l, r) -> toPolynomial solvingForVar l - toPolynomial solvingForVar r
-    | INeg e -> -toPolynomial solvingForVar e
+    | InputVar v when v = solvingForVar -> Poly [ PolyTerm(1N, 1) ]
+    | InputVar v -> Poly [ PolyTerm(BoundVariable v, 0) ]
+    | InputNum n -> Poly [ PolyTerm(n, 0) ]
+    | InputMul (l, r) -> toPolynomial solvingForVar l * toPolynomial solvingForVar r
+    | InputDiv (l, r) -> toPolynomial solvingForVar l / toPolynomial solvingForVar r
+    | InputAdd (l, r) -> toPolynomial solvingForVar l + toPolynomial solvingForVar r
+    | InputSub (l, r) -> toPolynomial solvingForVar l - toPolynomial solvingForVar r
+    | InputNeg e -> -toPolynomial solvingForVar e
 
 type Quartic =
     {   X4 : Solution
@@ -225,7 +225,7 @@ let rec zeroes (q : Quartic) =
     | _ -> failwith "only up to quadratic implemented so far"
 
 type Equation =
-    | Equation of IExpr * IExpr
+    | Equation of InputExpr * InputExpr
 
 let solveEquation solvingForVar (Equation(left, right)) =
     let left = toPolynomial solvingForVar left
@@ -236,9 +236,9 @@ let solveEquation solvingForVar (Equation(left, right)) =
 
 [<EntryPoint>]
 let main argv =
-    let v name = IVar (Variable name)
+    let v name = InputVar (Variable name)
     // price = cost + (cost * markup)
-    let equation = Equation(v "price", IAdd(v "cost", IMul(v "cost", v "markup")))
+    let equation = Equation(v "price", InputAdd(v "cost", InputMul(v "cost", v "markup")))
 
     let freeVariable = Variable "markup"
     let values =
