@@ -8,6 +8,8 @@ let rec gcd a b =
 
 type Variable =
     | Variable of string
+    member this.Name =
+        let (Variable x) = this in x
 
 [<CustomEquality>]
 [<CustomComparison>]
@@ -167,19 +169,19 @@ let rec solutions (value : Number) (Polynomial p) =
     let p = p |> List.rev |> List.skipWhile ((=) 0N) |> List.rev
     match p with
     | [] ->
-        if value = 0N then [ [] ] else []
+        if value = 0N then [ None ] else []
     | [ k ] ->
-        if value = k then [ [] ] else []
+        if value = k then [ None ] else []
     | [ k; m ] ->
         let x = (value - k) / m
-        [ [ TrueWithVar x ] ]
+        [ Some x ]
     | [ c; b; a ] ->
         let square = b * b - 4N * a * c
         if square < 0N then []
         else
             let s = sqrt square
-            [   [ TrueWithVar ((-b + s) / (2N * a)) ]
-                [ TrueWithVar ((-b - s) / (2N * a)) ]
+            [   Some ((-b + s) / (2N * a))
+                Some ((-b - s) / (2N * a))
             ]
     | _ -> failwith "can't handle anything fancier than quadratic equations" // TODO
 
@@ -190,17 +192,35 @@ let main argv =
         // price = cost + cost * markup
         // 1 = (cost + cost * markup) / price
         IDiv(IAdd(v "cost", IMul(v "cost", v "markup")), v "price")
+
     let bindings =
         [   Variable "cost", Some (10N)
             Variable "markup", None //Some (1N/2N)
             Variable "price", Some (15N)
         ] |> Map.ofList
+
     let plugged =
         formula
         |> plugIn bindings
+
     let poly = toPolynomial plugged
-    printfn "%A" poly
+    printfn "%O" poly
+
     let solutions =
         solutions 1N poly
-    printfn "%A" solutions
+    match solutions with
+    | [] -> printfn "no solutions!"
+    | solutions ->
+        for solution in solutions do
+            match solution with
+            | None -> printfn "trivially true!"
+            | Some x ->
+                let (v, _) = 
+                    bindings
+                    |> Map.toSeq
+                    |> Seq.filter (snd >> Option.isNone)
+                    |> Seq.exactlyOne
+
+                printfn "%s = %O" v.Name x
+
     0 // return an integer exit code
