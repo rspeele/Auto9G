@@ -8,16 +8,17 @@ let rec gcd a b =
 
 type Variable =
     | Variable of string
-    member this.Name =
-        let (Variable x) = this in x
+    override this.ToString() = this.Name
+    member this.Name = let (Variable x) = this in x
 
-type Number =
+type Solution =
     | Literal of int64
-    | Multiply of Number * Number
-    | Divide of Number * Number
-    | Add of Number * Number
-    | SquareRoot of Number
-    | CubeRoot of Number
+    | BoundVariable of Variable
+    | Multiply of Solution * Solution
+    | Divide of Solution * Solution
+    | Add of Solution * Solution
+    | SquareRoot of Solution
+    | CubeRoot of Solution
     static member Zero =
         Literal 0L
     static member Sqrt(x) =
@@ -59,34 +60,29 @@ type Number =
             | x, y when x = y -> Multiply(Literal 2L, x)
             | l, r -> Add (l, r)
         | other -> other
-    member this.Approximate() =
+    member this.Approximate(variables : Variable -> decimal) =
         match this with
         | Literal x -> decimal x
+        | BoundVariable v -> variables v
         | Multiply (x, y) ->
-            x.Approximate() * y.Approximate()
+            x.Approximate(variables) * y.Approximate(variables)
         | Divide (x, y) ->
-            x.Approximate() / y.Approximate()
+            x.Approximate(variables) / y.Approximate(variables)
         | Add (x, y) ->
-            x.Approximate() + y.Approximate()
+            x.Approximate(variables) + y.Approximate(variables)
         | SquareRoot x ->
-            decimal (sqrt (double (x.Approximate())))
+            decimal (sqrt (double (x.Approximate(variables))))
         | CubeRoot x ->
-            decimal (Math.Pow(double (x.Approximate()), 1.0/3.0))
-    member this.ToString(showApproximate : bool) =
-        let simple =
-            match this with
-            | Literal x -> string x
-            | Multiply (x, y) -> sprintf "(%s*%s)" (x.ToString(false)) (y.ToString(false))
-            | Divide (x, y) -> sprintf "(%s/%s)" (x.ToString(false)) (y.ToString(false))
-            | Add (x, y) -> sprintf "(%s+%s)" (x.ToString(false)) (y.ToString(false))
-            | SquareRoot x -> sprintf "sqrt(%s)" (x.ToString(false))
-            | CubeRoot x -> sprintf "(%s^1/3)" (x.ToString(false))
-        if showApproximate then
-            sprintf "~%O: " (this.Approximate()) + simple
-        else
-            simple
+            decimal (Math.Pow(double (x.Approximate(variables)), 1.0/3.0))
     override this.ToString() =
-        this.ToString(showApproximate = true)
+        match this with
+        | Literal x -> string x
+        | BoundVariable v -> string v
+        | Multiply (x, y) -> sprintf "(%O*%O)" x y
+        | Divide (x, y) -> sprintf "(%O/%O)" x y
+        | Add (x, y) -> sprintf "(%O+%O)" x y
+        | SquareRoot x -> sprintf "sqrt(%O)" x
+        | CubeRoot x -> sprintf "(%O^1/3)" x
 
 module NumericLiteralN =
     let FromOne () = Literal 1L
@@ -97,98 +93,94 @@ module NumericLiteralN =
     
 type IExpr = // input expr AST
     | IVar of Variable
-    | INum of Number
+    | INum of Solution
     | INeg of IExpr
     | IMul of IExpr * IExpr
     | IDiv of IExpr * IExpr
     | IAdd of IExpr * IExpr
     | ISub of IExpr * IExpr
 
-type PExpr = // single-variable form after plugging in known vars
-    | PVar // the single variable we're solving for
-    | PNum of Number
-    | PMul of PExpr * PExpr
-    | PDiv of PExpr * PExpr
-    | PAdd of PExpr * PExpr
-
-let rec plugIn (vars : Map<Variable, Number option>) (ex : IExpr) =
-    match ex with
-    | IVar v ->
-        match vars |> Map.tryFind v with
-        | Some None -> PVar
-        | Some (Some n) -> PNum n
-        | None -> failwithf "Variable %O not bound to a value or for solving" v
-    | INum n -> PNum n
-    | INeg e -> PMul(PNum (-1N), plugIn vars e)
-    | IMul (l, r) -> PMul(plugIn vars l, plugIn vars r)
-    | IDiv (l, r) -> PDiv(plugIn vars l, plugIn vars r)
-    | IAdd (l, r) -> PAdd(plugIn vars l, plugIn vars r)
-    | ISub (l, r) -> PAdd(plugIn vars l, PMul(PNum (-1N), plugIn vars r))
-
 type Power = int
 
-type Polynomial =
-    | Polynomial of (Number * Power) list
-    member private this.Multiply(n, power) =
-        let (Polynomial factors) = this
-        [ for (ln, lp) in factors ->
-            ln * n, lp + power
-        ] |> Polynomial
-    member this.Canonical() =
-        let (Polynomial factors) = this
-        let noZeros =
-            factors
-            |> Seq.filter (fst >> ((<>) 0N))
-            |> Seq.append [ (0N, 0) ]
+type PolyTerm =
+    | PolyTerm of Solution * Power
+    static member Zero =
+        PolyTerm (0N, 0)
+    static member One =
+        PolyTerm (1N, 0)
+    static member ( * ) (PolyTerm(ls, lp), PolyTerm(rs, rp)) =
+        PolyTerm(ls * rs, lp + rp)
+    static member ( / ) (PolyTerm(ls, lp), PolyTerm(rs, rp)) =
+        PolyTerm(ls / rs, lp - rp)
+    static member ( ~- ) (PolyTerm(s, p)) =
+        PolyTerm(-s, p)
+
+let power (PolyTerm (_, p)) = p
+let coeff (PolyTerm (c, _)) = c
+
+type Poly =
+    | Poly of PolyTerm list
+    member this.Terms = let (Poly terms) = this in terms
+    member this.CombineLikeTerms() =
         let likeTerms =
-            noZeros
-            |> Seq.groupBy snd
+            this.Terms
+            |> Seq.append [ PolyTerm.Zero ]
+            |> Seq.groupBy power
             |> Seq.map (fun (power, terms) ->
-                Seq.sumBy fst terms, power)
-            |> Seq.sortByDescending snd
+                PolyTerm (Seq.sumBy coeff terms, power))
+            |> Seq.sortByDescending power
             |> Seq.toList
-        Polynomial likeTerms
+        Poly likeTerms
     override this.ToString() =
-        let (Polynomial factors) = this.Canonical()
+        let (Poly terms) = this.CombineLikeTerms()
         seq {
-            for n, power in factors ->
+            for PolyTerm(n, power) in terms ->
                 if power = 0 then string n
                 elif power = 1 then string n + "x"
                 else string n + "x^" + string power
         } |> String.concat " + "
-    static member ( ~- ) (Polynomial factors) =
-        Polynomial [ for f, p in factors -> -f, p ]
-    static member ( * ) (Polynomial left, right : Polynomial) =
+    static member ( ~- ) (Poly terms) =
+        Poly [ for t in terms -> -t ]
+    static member ( * ) (Poly leftTerms, Poly rightTerms) =
         seq {
-            for n, power in left ->
-                right.Multiply(n, power)
-        } |> Seq.fold (+) (Polynomial [])
-    static member ( / ) (left : Polynomial, Polynomial right) =
-        left * Polynomial [ for f, p in right -> f, -p ]
-    static member ( + ) (Polynomial left, Polynomial right) =
-        (Polynomial (List.append left right)).Canonical()
-    static member ( - ) (left : Polynomial, right : Polynomial) =
+            for leftTerm in leftTerms ->
+                [ for rightTerm in rightTerms ->
+                    leftTerm * rightTerm
+                ] |> Poly
+        } |> Seq.fold (+) (Poly [])
+    static member ( / ) (Poly leftTerms, Poly rightTerms)  =
+        seq {
+            for leftTerm in leftTerms ->
+                [ for rightTerm in rightTerms ->
+                    leftTerm / rightTerm
+                ] |> Poly
+        } |> Seq.fold (+) (Poly [])
+    static member ( + ) (Poly left, Poly right) =
+        (Poly (List.append left right)).CombineLikeTerms()
+    static member ( - ) (left : Poly, right : Poly) =
         left + -right
 
-let rec toPolynomial e =
+let rec toPolynomial solvingForVar e =
     match e with
-    | PVar -> Polynomial [ (1N, 1) ]
-    | PNum n -> Polynomial [ (n, 0) ]
-    | PMul (l, r) -> toPolynomial l * toPolynomial r
-    | PDiv (l, r) -> toPolynomial l / toPolynomial r
-    | PAdd (l, r) -> toPolynomial l + toPolynomial r
+    | IVar v when v = solvingForVar -> Poly [ PolyTerm(1N, 1) ]
+    | IVar v -> Poly [ PolyTerm(BoundVariable v, 0) ]
+    | INum n -> Poly [ PolyTerm(n, 0) ]
+    | IMul (l, r) -> toPolynomial solvingForVar l * toPolynomial solvingForVar r
+    | IDiv (l, r) -> toPolynomial solvingForVar l / toPolynomial solvingForVar r
+    | IAdd (l, r) -> toPolynomial solvingForVar l + toPolynomial solvingForVar r
+    | ISub (l, r) -> toPolynomial solvingForVar l - toPolynomial solvingForVar r
+    | INeg e -> -toPolynomial solvingForVar e
 
-let rec solutions (value : Number) (p : Polynomial) =
-    match p.Canonical() with
-    | Polynomial [ (k, 0) ] ->
+let rec solutions (value : Solution) (p : Poly) =
+    match p.CombineLikeTerms() with
+    | Poly [ PolyTerm(k, 0) ] ->
         if value = k then [ None ] else []
-    | Polynomial [ (k, 0); (m, -1) ] ->
-        let x = (value - k) * m
-        [ Some x ]
-    | Polynomial [ (m, 1); (k, 0) ] ->
+    | Poly [ PolyTerm(k, 0); PolyTerm(m, -1) ] ->
+        [ Some <| (value - k) * m ]
+    | Poly [ PolyTerm(m, 1); PolyTerm(k, 0) ] ->
         let x = (value - k) / m
         [ Some x ]
-    | Polynomial [ (a, 2); (b, 1); (c, 0) ] ->
+    | Poly [ PolyTerm(a, 2); PolyTerm(b, 1); PolyTerm(c, 0) ] ->
         let square = b * b - 4N * a * c
         if square < 0N then []
         else
@@ -196,7 +188,7 @@ let rec solutions (value : Number) (p : Polynomial) =
             [   Some ((-b + s) / (2N * a))
                 Some ((-b - s) / (2N * a))
             ]
-    | _ -> failwith "can't handle anything fancier than quadratic equations" // TODO
+    | p -> failwithf "can't handle this fancy thing: %O" p
 
 [<EntryPoint>]
 let main argv =
@@ -206,17 +198,8 @@ let main argv =
         // 1 = (cost + cost * markup) / price
         IDiv(IAdd(v "cost", IMul(v "cost", v "markup")), v "price")
 
-    let bindings =
-        [   Variable "cost", Some (10N)
-            Variable "markup", Some (1N/2N)
-            Variable "price", None
-        ] |> Map.ofList
-
-    let plugged =
-        formula
-        |> plugIn bindings
-
-    let poly = toPolynomial plugged
+    let solveFor = Variable "cost"
+    let poly = toPolynomial solveFor formula
     printfn "%O" poly
 
     let solutions =
@@ -228,12 +211,6 @@ let main argv =
             match solution with
             | None -> printfn "trivially true!"
             | Some x ->
-                let (v, _) = 
-                    bindings
-                    |> Map.toSeq
-                    |> Seq.filter (snd >> Option.isNone)
-                    |> Seq.exactlyOne
-
-                printfn "%s = %O" v.Name x
+                printfn "%O = %O" solveFor x
 
     0 // return an integer exit code
