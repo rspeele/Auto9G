@@ -47,6 +47,7 @@ type Solution =
             | l, r -> Multiply(l, r)
         | Divide (l, r) ->
             match l.Simplify(), r.Simplify() with
+            | (Literal 0L as zero, _) -> zero
             | x, Literal 1L -> x
             | x, y when x = y -> Literal 1L
             | x, Multiply(Literal n, y) when x = y -> Literal 1L / Literal n
@@ -199,6 +200,11 @@ let main argv =
         IDiv(IAdd(v "cost", IMul(v "cost", v "markup")), v "price")
 
     let solveFor = Variable "cost"
+    let values =
+        [   Variable "cost", 10m
+            Variable "markup", 0.5m
+            Variable "price", 15m
+        ] |> Map.ofList
     let poly = toPolynomial solveFor formula
     printfn "%O" poly
 
@@ -212,5 +218,7 @@ let main argv =
             | None -> printfn "trivially true!"
             | Some x ->
                 printfn "%O = %O" solveFor x
+                let answer = x.Approximate(fun v -> Map.find v values)
+                printfn "  = %O" answer
 
     0 // return an integer exit code
