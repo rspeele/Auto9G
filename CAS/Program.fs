@@ -25,7 +25,9 @@ type Number =
         let (Fraction (n, d)) = this
         if d = 1L then string n
         else string n + "/" + string d
+    static member Zero = Fraction (0L, 1L)
     static member ( * ) (Fraction (ln, ld), Fraction (rn, rd)) =
+        if ln = 0L || rn = 0L then Fraction(0L, 1L) else
         let n = ln * rn
         let d = ld * rd
         let gcd = gcd n d
@@ -121,62 +123,70 @@ type Solution =
     | True
     | TrueWithVar of Number
 
+type Power = int
+
 type Polynomial =
-    | Polynomial of Number list // [ 1; 2; 3 ] -> 3x^2 + 2x + 1
-    override this.ToString() =
+    | Polynomial of (Number * Power) list
+    member private this.Multiply(n, power) =
         let (Polynomial factors) = this
+        [ for (ln, lp) in factors ->
+            ln * n, lp + power
+        ] |> Polynomial
+    member this.Canonical() =
+        let (Polynomial factors) = this
+        let noZeros =
+            factors
+            |> Seq.filter (fst >> ((<>) 0N))
+            |> Seq.append [ (0N, 0) ]
+        let likeTerms =
+            noZeros
+            |> Seq.groupBy snd
+            |> Seq.map (fun (power, terms) ->
+                Seq.sumBy fst terms, power)
+            |> Seq.sortByDescending snd
+            |> Seq.toList
+        Polynomial likeTerms
+    override this.ToString() =
+        let (Polynomial factors) = this.Canonical()
         seq {
-            for power, n in Seq.indexed factors ->
+            for n, power in factors ->
                 if power = 0 then string n
                 elif power = 1 then string n + "x"
                 else string n + "x^" + string power
         } |> String.concat " + "
-    member private this.Multiply(n, power) =
-        let (Polynomial xs) = this
-        Polynomial
-            [   for i = 1 to power do yield 0N
-                for x in xs -> n * x
-            ]
     static member ( ~- ) (Polynomial factors) =
-        Polynomial [ for f in factors -> -f ]
+        Polynomial [ for f, p in factors -> -f, p ]
     static member ( * ) (Polynomial left, right : Polynomial) =
         seq {
-            for power, n in Seq.indexed left ->
+            for n, power in left ->
                 right.Multiply(n, power)
         } |> Seq.fold (+) (Polynomial [])
     static member ( / ) (left : Polynomial, Polynomial right) =
-        // TODO: this seems to be incorrect...
-        left * Polynomial [ for f in right -> 1N / f ]
+        left * Polynomial [ for f, p in right -> f, -p ]
     static member ( + ) (Polynomial left, Polynomial right) =
-        match left, right with
-        | [], [] -> Polynomial []
-        | [], rs -> Polynomial rs
-        | ls, [] -> Polynomial ls
-        | (l :: ls), (r :: rs) ->
-            let (Polynomial xs) = Polynomial ls + Polynomial rs
-            Polynomial (l + r :: xs)
+        (Polynomial (List.append left right)).Canonical()
     static member ( - ) (left : Polynomial, right : Polynomial) =
         left + -right
 
 let rec toPolynomial e =
     match e with
-    | PVar -> Polynomial [ 0N; 1N ]
-    | PNum n -> Polynomial [ n ]
+    | PVar -> Polynomial [ (1N, 1) ]
+    | PNum n -> Polynomial [ (n, 0) ]
     | PMul (l, r) -> toPolynomial l * toPolynomial r
     | PDiv (l, r) -> toPolynomial l / toPolynomial r
     | PAdd (l, r) -> toPolynomial l + toPolynomial r
 
-let rec solutions (value : Number) (Polynomial p) =
-    let p = p |> List.rev |> List.skipWhile ((=) 0N) |> List.rev
-    match p with
-    | [] ->
-        if value = 0N then [ None ] else []
-    | [ k ] ->
+let rec solutions (value : Number) (p : Polynomial) =
+    match p.Canonical() with
+    | Polynomial [ (k, 0) ] ->
         if value = k then [ None ] else []
-    | [ k; m ] ->
+    | Polynomial [ (k, 0); (m, -1) ] ->
+        let x = (value - k) * m
+        [ Some x ]
+    | Polynomial [ (m, 1); (k, 0) ] ->
         let x = (value - k) / m
         [ Some x ]
-    | [ c; b; a ] ->
+    | Polynomial [ (a, 2); (b, 1); (c, 0) ] ->
         let square = b * b - 4N * a * c
         if square < 0N then []
         else
