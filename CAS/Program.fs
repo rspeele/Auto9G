@@ -145,6 +145,7 @@ type Polynomial =
                 right.Multiply(n, power)
         } |> Seq.fold (+) (Polynomial [])
     static member ( / ) (left : Polynomial, Polynomial right) =
+        // TODO: this seems to be incorrect...
         left * Polynomial [ for f in right -> 1N / f ]
     static member ( + ) (Polynomial left, Polynomial right) =
         match left, right with
@@ -195,8 +196,8 @@ let main argv =
 
     let bindings =
         [   Variable "cost", Some (10N)
-            Variable "markup", None //Some (1N/2N)
-            Variable "price", Some (15N)
+            Variable "markup", Some (1N/2N)
+            Variable "price", None
         ] |> Map.ofList
 
     let plugged =
