@@ -1,10 +1,13 @@
 ﻿module CAS.Main
 open System
 
-let rec gcd a b =
+let rec greatestCommonDivisor a b =
     if b = 0L then a
     else
-        gcd b (a % b)
+        greatestCommonDivisor b (a % b)
+
+let commonDenominator a b =
+    a * b / greatestCommonDivisor a b
 
 type Variable =
     | Variable of string
@@ -105,6 +108,8 @@ type Power = int
 
 type PolyTerm =
     | PolyTerm of Solution * Power
+    member this.Coefficient = let (PolyTerm(c, _)) = this in c
+    member this.Power = let (PolyTerm(_, p)) = this in p
     static member Zero =
         PolyTerm (0N, 0)
     static member One =
@@ -122,10 +127,9 @@ let coeff (PolyTerm (c, _)) = c
 type Poly =
     | Poly of PolyTerm list
     member this.Terms = let (Poly terms) = this in terms
-    member this.CombineLikeTerms() =
+    member private this.CombineLikeTerms() =
         let likeTerms =
             this.Terms
-            |> Seq.append [ PolyTerm.Zero ]
             |> Seq.groupBy power
             |> Seq.map (fun (power, terms) ->
                 PolyTerm (Seq.sumBy coeff terms, power))
@@ -172,53 +176,85 @@ let rec toPolynomial solvingForVar e =
     | ISub (l, r) -> toPolynomial solvingForVar l - toPolynomial solvingForVar r
     | INeg e -> -toPolynomial solvingForVar e
 
-let rec solutions (value : Solution) (p : Poly) =
-    match p.CombineLikeTerms() with
-    | Poly [ PolyTerm(k, 0) ] ->
-        if value = k then [ None ] else []
-    | Poly [ PolyTerm(k, 0); PolyTerm(m, -1) ] ->
-        [ Some <| (value - k) * m ]
-    | Poly [ PolyTerm(m, 1); PolyTerm(k, 0) ] ->
-        let x = (value - k) / m
-        [ Some x ]
-    | Poly [ PolyTerm(a, 2); PolyTerm(b, 1); PolyTerm(c, 0) ] ->
+type Quartic =
+    {   X4 : Solution
+        X3 : Solution
+        X2 : Solution
+        X1 : Solution
+        X0 : Solution
+        XN1 : Solution
+    }
+    static member Zero =
+        {   X4 = 0N
+            X3 = 0N
+            X2 = 0N
+            X1 = 0N
+            X0 = 0N
+            XN1 = 0N
+        }
+
+let toQuartic (Poly terms) =
+    terms
+    |> List.fold (fun acc (PolyTerm(c, p) as term) ->
+            match p with
+            | -1 -> { acc with XN1 = acc.XN1 + c }
+            | 0 -> { acc with X0 = acc.X0 + c }
+            | 1 -> { acc with X1 = acc.X1 + c }
+            | 2 -> { acc with X2 = acc.X2 + c }
+            | 3 -> { acc with X3 = acc.X3 + c }
+            | 4 -> { acc with X4 = acc.X4 + c }
+            | p ->
+                failwithf "This polynomial includes the term x^%d. We can only handle up to quartic polynomials." p
+        ) Quartic.Zero
+
+
+let rec zeroes (q : Quartic) =
+    match q with
+    | { X4 = Literal 0L; X3 = Literal 0L; X2 = Literal 0L; X1 = m; X0 = b; XN1 = Literal 0L } ->
+        [ -b / m ]
+    | { X4 = Literal 0L; X3 = Literal 0L; X2 = Literal 0L; X1 = Literal 0L; X0 = b; XN1 = m } ->
+        [ -b * m ]
+    | { X4 = Literal 0L; X3 = Literal 0L; X2 = a; X1 = b; X0 = c; XN1 = Literal 0L } ->
         let square = b * b - 4N * a * c
         if square < 0N then []
         else
             let s = sqrt square
-            [   Some ((-b + s) / (2N * a))
-                Some ((-b - s) / (2N * a))
+            [   (-b + s) / (2N * a)
+                (-b - s) / (2N * a)
             ]
-    | p -> failwithf "can't handle this fancy thing: %O" p
+    | _ -> failwith "only up to quadratic implemented so far"
+
+type Equation =
+    | Equation of IExpr * IExpr
+
+let solveEquation solvingForVar (Equation(left, right)) =
+    let left = toPolynomial solvingForVar left
+    let right = toPolynomial solvingForVar right
+    let zero = right - left
+    let quartic = toQuartic zero
+    zeroes quartic
 
 [<EntryPoint>]
 let main argv =
     let v name = IVar (Variable name)
-    let formula =
-        // price = cost + cost * markup
-        // 1 = (cost + cost * markup) / price
-        IDiv(IAdd(v "cost", IMul(v "cost", v "markup")), v "price")
+    // price = cost + (cost * markup)
+    let equation = Equation(v "price", IAdd(v "cost", IMul(v "cost", v "markup")))
 
-    let solveFor = Variable "cost"
+    let freeVariable = Variable "markup"
     let values =
         [   Variable "cost", 10m
             Variable "markup", 0.5m
             Variable "price", 15m
         ] |> Map.ofList
-    let poly = toPolynomial solveFor formula
-    printfn "%O" poly
 
-    let solutions =
-        solutions 1N poly
+    let solutions = solveEquation freeVariable equation
+
     match solutions with
     | [] -> printfn "no solutions!"
     | solutions ->
-        for solution in solutions do
-            match solution with
-            | None -> printfn "trivially true!"
-            | Some x ->
-                printfn "%O = %O" solveFor x
-                let answer = x.Approximate(fun v -> Map.find v values)
-                printfn "  = %O" answer
+        for x in solutions do
+            printfn "%O = %O" freeVariable x
+            let answer = x.Approximate(fun v -> Map.find v values)
+            printfn "%O = %O" freeVariable answer
 
     0 // return an integer exit code
