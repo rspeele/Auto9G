@@ -11,82 +11,62 @@ type Variable =
     member this.Name =
         let (Variable x) = this in x
 
-[<CustomEquality>]
-[<CustomComparison>]
 type Number =
-    | Fraction of numerator : int64 * denominator : int64
-    member inline private this.Numerator = let (Fraction(n, _)) = this in n
-    member inline private this.Denominator = let (Fraction(_, d)) = this in d
-    member this.Sign =
-        let (Fraction (n, d)) = this
-        if (n >= 0L) = (d >= 0L) then 1
-        else -1
+    | Literal of int64
+    | Multiply of Number * Number
+    | Divide of Number * Number
+    | Add of Number * Number
+    | SquareRoot of Number
+    | CubeRoot of Number
+    static member Zero =
+        Literal 0L
+    static member Sqrt(x) =
+        SquareRoot x
+    static member ( * ) (l, r) =
+        Multiply (l, r)
+    static member ( / ) (l, r) =
+        Divide (l, r)
+    static member ( ~- ) (x) =
+        Multiply(Literal -1L, x)
+    static member ( + ) (l, r) =
+        Add (l, r)
+    static member ( - ) (l, r) =
+        Add (l, -r)
+    member this.Approximate() =
+        match this with
+        | Literal x -> decimal x
+        | Multiply (x, y) ->
+            x.Approximate() * y.Approximate()
+        | Divide (x, y) ->
+            x.Approximate() / y.Approximate()
+        | Add (x, y) ->
+            x.Approximate() + y.Approximate()
+        | SquareRoot x ->
+            decimal (sqrt (double (x.Approximate())))
+        | CubeRoot x ->
+            decimal (Math.Pow(double (x.Approximate()), 1.0/3.0))
+    member this.ToString(showApproximate : bool) =
+        let simple =
+            match this with
+            | Literal x -> string x
+            | Multiply (x, y) -> sprintf "(%s*%s)" (x.ToString(false)) (y.ToString(false))
+            | Divide (x, y) -> sprintf "(%s/%s)" (x.ToString(false)) (y.ToString(false))
+            | Add (x, y) -> sprintf "(%s+%s)" (x.ToString(false)) (y.ToString(false))
+            | SquareRoot x -> sprintf "sqrt(%s)" (x.ToString(false))
+            | CubeRoot x -> sprintf "(%s^1/3)" (x.ToString(false))
+        if showApproximate then
+            sprintf "~%O: " (this.Approximate()) + simple
+        else
+            simple
     override this.ToString() =
-        let (Fraction (n, d)) = this
-        if d = 1L then string n
-        else string n + "/" + string d
-    static member Zero = Fraction (0L, 1L)
-    static member ( * ) (Fraction (ln, ld), Fraction (rn, rd)) =
-        if ln = 0L || rn = 0L then Fraction(0L, 1L) else
-        let n = ln * rn
-        let d = ld * rd
-        let gcd = gcd n d
-        Fraction (n / gcd, d / gcd)
-    static member ( / ) (left : Number, Fraction (rn, rd)) =
-        left * Fraction(rd, rn)
-    static member ( + ) (Fraction (ln, ld), Fraction (rn, rd)) =
-        if ld = rd then Fraction(ln + rn, ld)
-        else
-            let d =
-                ld * rd / gcd ld rd
-            let n =
-                ln * (d / ld) + rn * (d / rd)
-            Fraction (n, d)
-    static member ( - ) (left : Number, right : Number) =
-        left + -right
-    static member ( ~- ) (Fraction (rn, rd)) =
-        Fraction (-rn, rd)
-    static member Abs(Fraction (rn, rd)) =
-        Fraction (abs rn, abs rd)
-    static member Sqrt (x : Number) =
-        // TODO: represent irrationals deferring the sqrt...
-        // this is just a placeholder to see if things are sort-of right
-        let ratio = double x.Numerator / double x.Denominator
-        let approx = sqrt ratio
-        let scale = 1000L
-        Fraction (int64 (approx * double scale), 1L) * Fraction(1L, scale)
-    member this.CompareTo(other : Number) =
-        if this.Sign > other.Sign then 1
-        elif this.Sign < other.Sign then -1
-        else
-            let ratio = this / other
-            if ratio.Numerator = ratio.Denominator then 0
-            elif ratio.Numerator < ratio.Denominator then 1
-            else -1
-    member this.CompareTo(other : obj) =
-        match other with
-        | :? Number as other -> this.CompareTo(other)
-        | _ -> -1
-    member this.Equals(o : Number) =
-        this.CompareTo(o) = 0
-    override this.Equals(o : obj) =
-        this.CompareTo(o) = 0
-    override this.GetHashCode() =
-        let (Fraction (n, d)) = this
-        (n, d).GetHashCode()
-    interface IComparable with
-        member this.CompareTo(other) = this.CompareTo(other)
-    interface IEquatable<Number> with
-        member this.Equals(other) = this.Equals(other)
-    interface IComparable<Number> with
-        member this.CompareTo(other) = this.CompareTo(other)
+        this.ToString(showApproximate = true)
 
 module NumericLiteralN =
-    let FromOne () = Fraction(1L, 1L)
-    let FromZero () = Fraction(0L, 1L)
-    let FromInt32 i = Fraction(int64 i, 1L)
-    let FromInt64 i = Fraction(i, 1L)
-    let FromString s = Fraction(int64 s, 1L)
+    let FromOne () = Literal 1L
+    let FromZero () = Literal 0L
+    let FromInt32 i = Literal (int64 i)
+    let FromInt64 i = Literal i
+    let FromString (s : string) = Literal (int64 s)
     
 type IExpr = // input expr AST
     | IVar of Variable
