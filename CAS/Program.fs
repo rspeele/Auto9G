@@ -44,6 +44,7 @@ type Solution =
             | (_, (Literal 0L as zero)) -> zero
             | Literal 1L, x
             | x, Literal 1L -> x
+            | Literal x, Literal y -> Literal (x * y)
             | x, (Divide (n, d))
             | (Divide (n, d)), x when d = x -> n
             | SquareRoot x, SquareRoot y when x = y -> x
@@ -53,6 +54,7 @@ type Solution =
             | (Literal 0L as zero, _) -> zero
             | x, Literal 1L -> x
             | x, y when x = y -> Literal 1L
+            | Literal x, Literal y when y <> 0L && x % y = 0L -> Literal (x / y)
             | x, Multiply(Literal n, y) when x = y -> Literal 1L / Literal n
             | Multiply(Literal n, y), x when x = y -> Literal n
             | l, r -> Divide(l, r)
@@ -62,8 +64,21 @@ type Solution =
             | x, Literal 0L -> x
             | Literal x, Literal y -> Literal (x + y)
             | x, y when x = y -> Multiply(Literal 2L, x)
+            | Divide(Literal ln, Literal ld), Divide(Literal rn, Literal rd) when rd <> 0L && ld <> 0L ->
+                let commonDenominator = commonDenominator ld rd
+                Divide(Literal (commonDenominator / ld * ln + commonDenominator / rd * rn), Literal commonDenominator)
             | l, r -> Add (l, r)
-        | other -> other
+        | SquareRoot x ->
+            match x.Simplify() with
+            | Multiply(x1, x2) when x1 = x2 -> x1
+            | x -> SquareRoot x
+        | CubeRoot x ->
+            match x.Simplify() with
+            | Multiply(x1, Multiply(x2, x3))
+            | Multiply(Multiply(x1, x2), x3) when x1 = x2 && x2 = x3 -> x1
+            | x -> CubeRoot x
+        | Literal _
+        | BoundVariable _ -> this
     member this.Approximate(variables : Variable -> decimal) =
         match this with
         | Literal x -> decimal x
