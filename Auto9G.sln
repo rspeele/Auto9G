@@ -5,6 +5,13 @@ VisualStudioVersion = 15.0.26403.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Auto9G", "Auto9G\Auto9G.fsproj", "{701FF5CE-9FF0-4B64-B4C0-B55D19478A0A}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{EAF9AA66-E741-4E9C-B584-C29B075751FC}"
+	ProjectSection(SolutionItems) = preProject
+		demo.gif = demo.gif
+		LICENSE.txt = LICENSE.txt
+		README.md = README.md
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
