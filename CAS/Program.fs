@@ -3,6 +3,12 @@
 [<EntryPoint>]
 let main argv =
 
+    let input = "1 + y * 2 + x"
+    let parsed = Parser.expr input 0
+    match parsed with
+    | Parser.Fail (_, msg) -> printfn "fail %s" msg
+    | Parser.Success (x, _) ->
+        printfn "%O" x
 
     let v name = InputVar (Variable name)
     // price = cost + (cost * markup)
