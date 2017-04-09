@@ -65,8 +65,9 @@ type Solution =
             | Literal x, Literal y -> Literal (x + y)
             | x, y when x = y -> Multiply(Literal 2L, x)
             | Divide(Literal ln, Literal ld), Divide(Literal rn, Literal rd) when rd <> 0L && ld <> 0L ->
-                let commonDenominator = commonDenominator ld rd
-                Divide(Literal (commonDenominator / ld * ln + commonDenominator / rd * rn), Literal commonDenominator)
+                let denominator = commonDenominator ld rd
+                let numerator = denominator / ld * ln + denominator / rd * rn
+                (Divide(Literal numerator, Literal denominator)).Simplify()
             | l, r -> Add (l, r)
         | SquareRoot x ->
             match x.Simplify() with
