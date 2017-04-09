@@ -8,3 +8,6 @@ type InputExpr =
     | InputDiv of InputExpr * InputExpr
     | InputAdd of InputExpr * InputExpr
     | InputSub of InputExpr * InputExpr
+
+type Equation =
+    | Equation of InputExpr * InputExpr
