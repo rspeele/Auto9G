@@ -1,4 +1,4 @@
-﻿module Formulas.Solver
+﻿module Formulas.Internals.Solver
 
 let rec toPolynomial solvingForVar e =
     match e with
@@ -64,6 +64,8 @@ let rec zeroes (q : Quartic) =
             [   (-b + s) / (2N * a)
                 (-b - s) / (2N * a)
             ]
+    | _ ->
+        failwith "not implemented yet (cubic or quartic polynomial)"
 
 let solveEquation solvingForVar (Equation(left, right)) =
     let left = toPolynomial solvingForVar left

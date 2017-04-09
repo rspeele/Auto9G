@@ -1,4 +1,4 @@
-﻿namespace Formulas
+﻿namespace Formulas.Internals
 
 type Power = int
 

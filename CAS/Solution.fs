@@ -1,4 +1,4 @@
-﻿namespace Formulas
+﻿namespace Formulas.Internals
 open System
 
 module private FractionUtilities =

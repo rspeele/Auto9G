@@ -1,6 +1,5 @@
-﻿module Formulas.Main
+﻿module Formulas.Internals.Main
 
-[<EntryPoint>]
 let main argv =
 
     let input = "1 + y * 2 + x"

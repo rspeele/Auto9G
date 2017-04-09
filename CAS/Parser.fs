@@ -1,10 +1,15 @@
-﻿module Formulas.Parser
+﻿module Formulas.Internals.Parser
 
 type ParseResult<'a> =
     | Success of result : 'a * pos : int
     | Fail of pos : int * msg : string
 
 type Parser<'a> = string -> int -> ParseResult<'a>
+
+let run (p : Parser<'a>) str =
+    match p str 0 with
+    | Fail (pos, msg) -> failwithf "Parser error at %d: %s" pos msg
+    | Success (res, _) -> res
 
 let opt (p : Parser<'a>) =
     fun input pos ->
@@ -141,3 +146,9 @@ let expr =
                 | None -> Success(acc, pos)
                 | Some f -> f     
     mutableSelf
+
+let equation =
+    pipe2
+        (ws >>. expr .>> pstring "=" .>> ws)
+        expr
+        (fun l r -> Equation (l, r))
