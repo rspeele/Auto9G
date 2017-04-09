@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 15
 VisualStudioVersion = 15.0.26403.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "CAS", "CAS\CAS.fsproj", "{701FF5CE-9FF0-4B64-B4C0-B55D19478A0A}"
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Auto9G", "Auto9G\Auto9G.fsproj", "{701FF5CE-9FF0-4B64-B4C0-B55D19478A0A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
