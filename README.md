@@ -5,14 +5,14 @@ Anybody who has used [Wolfram Alpha](https://www.wolframalpha.com/) knows that c
 Why, then, do the most commonly used programming languages require that programmers always manually rearrange formulas
 to compute different variables?
 
-
+![example gif](https://raw.githubusercontent.com/rspeele/Auto9G/master/demo.gif)
 
 Example: we have a system selling products with a fixed markup. The price we sell a product at is always the
 cost of the product plus a markup factor (say, 0.1), like so:
 
 ```fsharp
 let priceOfOrder cost markup =
-	cost + cost * markup
+    cost + cost * markup
 ```
 
 Occasionally a client asks for a product we don't already know the cost of, and a salesperson quotes them a custom price.
@@ -23,7 +23,7 @@ To determine the effective markup of a custom price we might write code like:
 
 ```fsharp
 let markupOfOrder cost price =
-	(price - cost) / cost
+    (price - cost) / cost
 ```
 
 But this violates [DRY](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself) because really, it's the same formula.
@@ -33,10 +33,10 @@ If the requirements change so that we always have a base markup of 1 dollar, we 
 
 ```fsharp
 let priceOfOrder cost markup =
-	cost + cost * markup + 1
+    cost + cost * markup + 1
 
 let markupOfOrder cost price =
-	(price - 1 - cost) / cost
+    (price - 1 - cost) / cost
 ```
 
 Using this type provider, you would only change one place:
