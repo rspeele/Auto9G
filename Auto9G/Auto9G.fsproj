@@ -55,6 +55,7 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
+    <None Include="Auto9G.nuspec" />
     <Compile Include="AssemblyInfo.fs" />
     <Compile Include="Solution.fs" />
     <Compile Include="Input.fs" />

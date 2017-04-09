@@ -8,9 +8,9 @@ open System.Runtime.InteropServices
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [<assembly: AssemblyTitle("Auto9G")>]
-[<assembly: AssemblyDescription("")>]
+[<assembly: AssemblyDescription("Automatic 9th grader -- CAS at compile time for dead-simple business formulas")>]
 [<assembly: AssemblyConfiguration("")>]
-[<assembly: AssemblyCompany("")>]
+[<assembly: AssemblyCompany("Robert Peele")>]
 [<assembly: AssemblyProduct("Auto9G")>]
 [<assembly: AssemblyCopyright("Copyright © Rober Peele 2017")>]
 [<assembly: AssemblyTrademark("")>]
