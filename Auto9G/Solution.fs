@@ -49,10 +49,16 @@ type Solution =
             | Literal x, Literal y -> Literal (x * y)
             | x, (Divide (n, d))
             | (Divide (n, d)), x when d = x -> n
+            | Literal x, Multiply(Literal y, e)
+            | Literal x, Multiply(e, Literal y)
+            | Multiply(Literal y, e), Literal x
+            | Multiply(e, Literal y), Literal x ->
+                (Multiply(Literal (x * y), e)).Simplify()
             | SquareRoot x, SquareRoot y when x = y -> x
             | l, r -> Multiply(l, r)
         | Divide (l, r) ->
             match l.Simplify(), r.Simplify() with
+            | (l, (Literal 0L as r)) -> Divide(l, r) // can't simplify past /0
             | (Literal 0L as zero, _) -> zero
             | x, Literal 1L -> x
             | x, y when x = y -> Literal 1L

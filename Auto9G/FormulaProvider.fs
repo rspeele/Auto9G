@@ -44,7 +44,7 @@ type Provider(cfg : TypeProviderConfig) as this =
                     let equation = Parser.run Parser.equation formula
                     let allVariables = equation.Variables() |> Seq.distinct |> Seq.toArray
                     for variable in allVariables do
-                        let solutions = Solver.solveEquation variable equation
+                        let solutions = Solver.solveEquation variable equation |> List.map (fun s -> s.Simplify())
                         if solutions |> List.isEmpty then () else
                         let otherVariables =
                             allVariables |> Array.filter ((<>) variable) |> Array.sortBy (fun v -> v.Name)
