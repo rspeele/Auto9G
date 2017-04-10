@@ -1,4 +1,4 @@
-# Auto96 - automatic 9th grader
+# Auto9G - automatic 9th grader
 
 This is a minimal proof of concept for a really simple idea: compilers should perform trivial algebra for programmers.
 Anybody who has used [Wolfram Alpha](https://www.wolframalpha.com/) knows that computers are great at solving equations.
