@@ -10,7 +10,7 @@
     <projectUrl>https://github.com/rspeele/Auto9G</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>$description$</description>
-    <releaseNotes>Initial pre-prerelease.</releaseNotes>
+    <releaseNotes>Improve simplification rules.</releaseNotes>
     <copyright>Copyright Robert Peele 2017</copyright>
     <tags>fsharp typeprovider cas formula</tags>
   </metadata>
